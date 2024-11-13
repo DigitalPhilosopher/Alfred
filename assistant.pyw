@@ -1,12 +1,29 @@
+import subprocess
+import sys
+import os
+
+# Install packages from requirements.txt if they are missing
+requirements_file = "requirements.txt"
+if os.path.exists(requirements_file):
+    with open(requirements_file) as f:
+        required_packages = f.read().splitlines()
+
+    for package in required_packages:
+        try:
+            __import__(package.split('==')[0])  # Import package (handles version specifiers)
+        except ImportError:
+            subprocess.check_call([sys.executable, "-m", "pip", "install", package])
+            
 import tkinter as tk
 import datetime
-from tkinter import scrolledtext
+from ai import chat_with_gpt_4o
 
 class ChatAssistant:
     def __init__(self, root):
         self.root = root
         self.root.title("Chat Assistant")
         self.root.geometry("400x500")
+        self.root.attributes('-alpha', 0.9)  # Set window transparency
         
         # Container for chat messages
         self.chat_frame = tk.Frame(self.root, bg="#f0f0f0")
@@ -38,6 +55,10 @@ class ChatAssistant:
         self.entry_widget.bind("<Escape>", lambda e: self.root.quit())
         
         self.log_file = "assistant.log"
+        self.chat_history = [
+            {"role": "system", "content": "You are a helpful assistant."},
+            {"role": "assistant", "content": "Hello! Type your message and press Enter. Press Escape to exit."}
+        ]
         self.add_message("Alfred", "Hello! Type your message and press Enter. Press Escape to exit.")
     
     def _on_mousewheel(self, event):
@@ -47,9 +68,14 @@ class ChatAssistant:
         user_input = self.entry_widget.get().strip()
         if user_input:
             self.add_message("You", user_input, right=True)
-            self.add_message("Alfred", "roger that", right=False)
             self.log_message(user_input)
-            self.log_message("Alfred: roger that")
+            self.chat_history.append({"role": "user", "content": user_input})
+            
+            # Call GPT-4o to get response
+            assistant_response = self.chat_with_gpt_4o()
+            self.add_message("Alfred", assistant_response, right=False)
+            self.log_message(f"Alfred: {assistant_response}")
+            self.chat_history.append({"role": "assistant", "content": assistant_response})
         self.entry_widget.delete(0, tk.END)
     
     def add_message(self, sender, message, right=False):
@@ -73,6 +99,12 @@ class ChatAssistant:
         timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         with open(self.log_file, "a") as log_file:
             log_file.write(f"[{timestamp}] {message}\n")
+    
+    def chat_with_gpt_4o(self):
+        # Function to call GPT-4o with all messages
+        self.log_message("test")
+        response = chat_with_gpt_4o(self.chat_history, model="gpt-4o-mini")
+        return response
 
 if __name__ == "__main__":
     root = tk.Tk()

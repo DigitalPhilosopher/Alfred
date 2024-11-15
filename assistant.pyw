@@ -16,7 +16,7 @@ if os.path.exists(requirements_file):
             
 import tkinter as tk
 import datetime
-from ai import chat_with_gpt_4o
+from ai import chat_with_ai
 
 class ChatAssistant:
     def __init__(self, root):
@@ -103,7 +103,7 @@ class ChatAssistant:
     def chat_with_gpt_4o(self):
         # Function to call GPT-4o with all messages
         self.log_message("test")
-        response = chat_with_gpt_4o(self.chat_history, model="gpt-4o-mini")
+        response = chat_with_ai(self.chat_history)
         return response
 
 if __name__ == "__main__":

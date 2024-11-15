@@ -2,6 +2,20 @@ import openai
 from anthropic import Anthropic
 from dotenv import load_dotenv
 import os
+import json
+import logging
+from datetime import datetime
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler(f'ai_chat_{datetime.now().strftime("%Y%m%d")}.log'),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger('ai_chat')
 
 load_dotenv()
 client = None
@@ -22,94 +36,108 @@ def chat_with_ai(prompts, model=None):
         ValueError: If no API keys are configured
         Exception: For various API-specific errors
     """
+    global client
     anthropic_key = os.getenv('ANTHROPIC_API_KEY')
     openai_key = os.getenv('OPENAI_API_KEY')
+    
+    logger.info(f"Attempting to initialize chat with model: {model}")
     
     # Check if Anthropic API key is available
     if anthropic_key is not None and anthropic_key.strip() != "":
         if client is None:
+            logger.info("Initializing Anthropic client")
             client = Anthropic(api_key=anthropic_key)
-        return chat_with_claude(prompts, model)
+        if model:
+            return chat_with_claude(prompts, model)
+        else:
+            return chat_with_claude(prompts)
         
     # Check if OpenAI API key is available
     if openai_key is not None and openai_key.strip() != "":
         if client is None:
+            logger.info("Initializing OpenAI client")
             client = openai.OpenAI(api_key=openai_key)
-        return chat_with_gpt(prompts, model)
+        if model:
+            return chat_with_gpt(prompts, model)
+        else:
+            return chat_with_gpt(prompts)
         
+    logger.error("No valid API keys found")
     raise ValueError("No valid API keys found for either Anthropic or OpenAI")
-
-
 
 def chat_with_gpt(prompts, model="gpt-4o-mini"):
     try:
+        logger.info(f"Starting OpenAI chat with model: {model}")
         messages = [
             {"role": "system", "content": "You are a helpful assistant."},
         ]
         messages += prompts
         
+        logger.debug(f"Sending request to OpenAI with {len(messages)} messages")
         response = client.chat.completions.create(
             model=model,
             messages=messages,
         )
-
+        
+        logger.info("Successfully received OpenAI response")
         return response.choices[0].message.content
+        
     except openai.APIConnectionError as e:
-        print("Server connection error: {e.__cause__}")  # from httpx.
+        logger.error(f"OpenAI connection error: {e.__cause__}")
         raise
     except openai.RateLimitError as e:
-        print(f"OpenAI RATE LIMIT error {e.status_code}: (e.response)")
+        logger.error(f"OpenAI rate limit error {e.status_code}: {e.response}")
         raise
     except openai.APIStatusError as e:
-        print(f"OpenAI STATUS error {e.status_code}: (e.response)")
+        logger.error(f"OpenAI status error {e.status_code}: {e.response}")
         raise
     except openai.BadRequestError as e:
-        print(f"OpenAI BAD REQUEST error {e.status_code}: (e.response)")
+        logger.error(f"OpenAI bad request error {e.status_code}: {e.response}")
         raise
     except Exception as e:
-        print(f"An unexpected error occurred: {e}")
+        logger.error(f"Unexpected error in OpenAI chat: {e}", exc_info=True)
         raise
 
-def chat_with_claude(prompts, model="claude-3-5-haiku-202410122"):
+def chat_with_claude(prompts, model="claude-3-5-haiku-20241022"):
     try:
-        # Convert OpenAI-style messages to Anthropic format
-        messages = [
-            {"role": "system", "content": "You are a helpful assistant."},
-        ]
-        for prompt in prompts:
-            role = prompt["role"]
-            content = prompt["content"]
-            
-            # Map OpenAI roles to Anthropic roles
-            if role == "user":
-                messages.append({"role": "user", "content": content})
-            elif role == "assistant":
-                messages.append({"role": "assistant", "content": content})
-            # System messages are handled differently in Anthropic's API
-            # We'll add system message content to the first user message
-            elif role == "system" and messages:
-                if messages[0]["role"] == "user":
-                    messages[0]["content"] = f"{content}\n\n{messages[0]['content']}"
-            elif role == "system":
-                messages.append({"role": "user", "content": content})
+        logger.info(f"Starting Anthropic chat with model: {model}")
 
-        # Create the message
-        response = client.messages.create(
+        system = "You are a helpful assistant."
+        messages=[]
+        for prompt in prompts:
+            if prompt["role"] == "system":
+                system = prompt["content"]
+            else:
+                messages.append({
+                    "role": prompt["role"],
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": prompt["content"]
+                        }
+                    ]
+                })
+
+        message = client.messages.create(
             model=model,
-            messages=messages,
-            max_tokens=1024
+            max_tokens=1000,
+            temperature=0,
+            system=system,
+            messages=messages
         )
 
-        return response.content[0].text
+        logger.info("Successfully received Anthropic response")
+        return message.content[0].text
 
     except Exception as e:
+        print("error")
         # Handle specific Anthropic API errors
         if "rate_limit" in str(e).lower():
-            print(f"Anthropic API rate limit error: {e}")
+            logger.error(f"Anthropic rate limit error: {e}")
         elif "status" in str(e).lower():
-            print(f"Anthropic API status error: {e}")
+            logger.error(f"Anthropic status error: {e}")
         elif "bad_request" in str(e).lower():
-            print(f"Anthropic API bad request error: {e}")
+            logger.error(f"Anthropic bad request error: {e}")
         else:
-            print(f"An unexpected error occurred: {e}")
+            logger.error(f"Unexpected error in Anthropic chat: {e}", exc_info=True)
         raise

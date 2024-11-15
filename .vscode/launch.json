@@ -1,0 +1,13 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: assistant.pyw",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/assistant.pyw",
+            "console": "internalConsole",
+            "justMyCode": true
+        }
+    ]
+}

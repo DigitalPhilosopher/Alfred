@@ -2,6 +2,8 @@ import subprocess
 import sys
 import os
 
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
 # Install packages from requirements.txt if they are missing
 requirements_file = "requirements.txt"
 if os.path.exists(requirements_file):
@@ -16,7 +18,7 @@ if os.path.exists(requirements_file):
             
 import tkinter as tk
 import datetime
-from ai import chat_with_ai
+from agent.ai import chat_with_ai
 
 class ChatAssistant:
     def __init__(self, root):

@@ -18,7 +18,7 @@ if os.path.exists(requirements_file):
             
 import tkinter as tk
 import datetime
-from agent.ai import chat_with_ai
+from agent import AIAgent
 
 class ChatAssistant:
     def __init__(self, root):
@@ -62,6 +62,8 @@ class ChatAssistant:
             {"role": "assistant", "content": "Hello! Type your message and press Enter. Press Escape to exit."}
         ]
         self.add_message("Alfred", "Hello! Type your message and press Enter. Press Escape to exit.")
+
+        self.agent = AIAgent()
     
     def _on_mousewheel(self, event):
         self.canvas.yview_scroll(-1 * (event.delta // 120), "units")
@@ -105,7 +107,7 @@ class ChatAssistant:
     def chat_with_gpt_4o(self):
         # Function to call GPT-4o with all messages
         self.log_message("test")
-        response = chat_with_ai(self.chat_history)
+        response = self.agent.chat(self.chat_history)
         return response
 
 if __name__ == "__main__":

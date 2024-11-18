@@ -16,7 +16,7 @@ class AIAgent:
         openai_key = os.getenv('OPENAI_API_KEY')
         debug = os.getenv('DEBUG')
         
-        if debug:
+        if debug == "True":
             self.strategy = DummyStrategy("")
         elif anthropic_key and anthropic_key.strip():
             self.strategy = AnthropicStrategy(anthropic_key)

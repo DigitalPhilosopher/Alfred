@@ -220,13 +220,17 @@ class ChatUI:
                 current_text = self.current_message_label.get("1.0", tk.END).strip()
             else:
                 current_text = self.current_message_label.cget("text")
-                
-            # Remove prefix if present
-            if current_text.startswith("Alfred: "):
-                current_text = current_text[7:]
             
-            # Combine current text with new chunk
-            new_text = f"{current_text}{chunk}"
+            # Remove prefix if present and clean up whitespace
+            if current_text.startswith("Alfred: "):
+                current_text = current_text[7:].strip()
+            
+            # Combine current text with new chunk, ensuring proper spacing
+            chunk = chunk.strip()
+            if current_text:
+                new_text = f"{current_text} {chunk}".strip()
+            else:
+                new_text = chunk
             
             # Check if complete message contains markdown
             if has_markdown(new_text):

@@ -109,11 +109,10 @@ class ChatUI:
             current_text = self.current_message_label.cget("text")
             
             if current_text.startswith("Alfred: "):
-                current_text = current_text[7:].strip()
-            
-            chunk = chunk.strip()
+                current_text = current_text[8:]
+
             if current_text:
-                new_text = f"{current_text} {chunk}".strip()
+                new_text = f"{current_text}{chunk}"
             else:
                 new_text = chunk
             

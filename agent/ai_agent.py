@@ -1,7 +1,7 @@
 from typing import Optional, List, Dict
 from dotenv import load_dotenv
 import os
-from .strategies import OpenAIStrategy, AnthropicStrategy, AIStrategy
+from .strategies import OpenAIStrategy, AnthropicStrategy, AIStrategy, DummyStrategy
 from .logger_config import logger
 
 class AIAgent:
@@ -16,8 +16,11 @@ class AIAgent:
         
         anthropic_key = os.getenv('ANTHROPIC_API_KEY')
         openai_key = os.getenv('OPENAI_API_KEY')
+        debug = os.getenv('DEBUG')
         
-        if anthropic_key and anthropic_key.strip():
+        if debug:
+            self.strategy = DummyStrategy("")
+        elif anthropic_key and anthropic_key.strip():
             self.strategy = AnthropicStrategy(anthropic_key)
         elif openai_key and openai_key.strip():
             self.strategy = OpenAIStrategy(openai_key)

@@ -9,6 +9,7 @@ class ChatUI:
         self.root.title("AI Agent Alfred")
         self.root.geometry("400x500")
         self.root.attributes('-alpha', 0.9)
+        self.root.resizable(False, False)
         
         self.setup_ui()
         self.log_file = "assistant.log"

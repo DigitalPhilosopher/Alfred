@@ -1,17 +1,15 @@
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Callable
 from dotenv import load_dotenv
 import os
 from .strategies import OpenAIStrategy, AnthropicStrategy, AIStrategy, DummyStrategy
 from .logger_config import logger
 
 class AIAgent:
-    """Main class that handles AI chat operations using different strategies"""
-    
     def __init__(self):
         self.strategy: Optional[AIStrategy] = None
+        self.on_stream: Optional[Callable[[str], None]] = None
         
     def initialize_strategy(self) -> None:
-        """Initialize the appropriate strategy based on available API keys"""
         load_dotenv()
         
         anthropic_key = os.getenv('ANTHROPIC_API_KEY')
@@ -27,18 +25,16 @@ class AIAgent:
         else:
             logger.error("No valid API keys found")
             raise ValueError("No valid API keys found for either Anthropic or OpenAI")
-    
-    def chat(self, prompts: List[Dict[str, str]], model: Optional[str] = None) -> str:
-        """
-        Execute chat using the configured strategy
         
-        Args:
-            prompts: List of message dictionaries with 'role' and 'content' keys
-            model: Optional specific model to use
-            
-        Returns:
-            Response text from the AI model
-        """
+        if hasattr(self.strategy, 'on_stream'):
+            self.strategy.on_stream = self.on_stream
+    
+    def set_stream_callback(self, callback: Callable[[str], None]):
+        self.on_stream = callback
+        if self.strategy and hasattr(self.strategy, 'on_stream'):
+            self.strategy.on_stream = callback
+
+    def chat(self, prompts: List[Dict[str, str]], model: Optional[str] = None) -> str:
         if not self.strategy:
             self.initialize_strategy()
         

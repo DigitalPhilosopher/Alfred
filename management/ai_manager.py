@@ -8,6 +8,9 @@ class AIManager:
             {"role": "assistant", "content": "Hello! Type your message and press Enter. Press Escape to exit."}
         ]
         
+    def set_stream_callback(self, callback):
+        self.agent.set_stream_callback(callback)
+        
     def process_message(self, user_input):
         self.chat_history.append({"role": "user", "content": user_input})
         response = self.agent.chat(self.chat_history)

@@ -7,6 +7,7 @@ class ChatApplication:
         self.ai_manager = AIManager()
         self.root = tk.Tk()
         self.assistant = ChatUI(self.root, self.ai_manager.process_message)
+        self.ai_manager.set_stream_callback(self.assistant.update_current_message)
         
     def run(self):
         self.root.mainloop()

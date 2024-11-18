@@ -62,6 +62,9 @@ class ChatUI:
             self.add_message("You", user_input, right=True)
             self.log_message(user_input)
             
+            # Reset current message label before starting new response
+            self.current_message_label = None
+            
             self.show_loading()
             
             def callback_wrapper():
@@ -70,10 +73,9 @@ class ChatUI:
             
             thread = threading.Thread(target=callback_wrapper)
             thread.start()
-    
+
     def handle_response(self, response):
         self.hide_loading()
-        self.add_message("Alfred", response)
         self.log_message(f"Alfred: {response}")
     
     def _on_mousewheel(self, event):
@@ -93,8 +95,24 @@ class ChatUI:
         )
         bubble_label.pack(anchor="e" if right else "w", padx=(50 if right else 10, 10 if right else 50))
         bubble_frame.pack(anchor="e" if right else "w", fill='x', padx=10, pady=2)
+        
+        if sender == "Alfred":
+            self.current_message_label = bubble_label
+            
         self.scrollable_frame.update_idletasks()
         self.canvas.yview_moveto(1.0)
+
+    def update_current_message(self, chunk):
+        # If this is the first chunk or we don't have a current message label
+        if not hasattr(self, 'current_message_label') or self.current_message_label is None:
+            self.add_message("Alfred", chunk)
+        else:
+            current_text = self.current_message_label.cget("text")
+            if current_text.startswith("Alfred: "):
+                current_text = current_text[7:]
+            self.current_message_label.config(text=f"Alfred: {current_text}{chunk}")
+            self.scrollable_frame.update_idletasks()
+            self.canvas.yview_moveto(1.0)
     
     def log_message(self, message):
         timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")

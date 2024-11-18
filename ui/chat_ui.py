@@ -1,5 +1,6 @@
 import tkinter as tk
 import datetime
+import threading
 
 class ChatUI:
     def __init__(self, root, message_callback):
@@ -11,6 +12,7 @@ class ChatUI:
         
         self.setup_ui()
         self.log_file = "assistant.log"
+        self.loading = False
         self.add_message("Alfred", "Hello! Type your message and press Enter. Press Escape to exit.")
         
     def setup_ui(self):
@@ -34,22 +36,44 @@ class ChatUI:
         
         self.canvas.bind_all("<MouseWheel>", self._on_mousewheel)
         
+        # Loading indicator
+        self.loading_label = tk.Label(self.root, text="Thinking...", fg="gray")
+        
         self.entry_widget = tk.Entry(self.root)
         self.entry_widget.pack(padx=10, pady=10, fill='x')
         self.entry_widget.bind("<Return>", self.process_input)
         self.entry_widget.bind("<Escape>", lambda e: self.root.quit())
     
+    def show_loading(self):
+        self.loading = True
+        self.loading_label.pack(before=self.entry_widget)
+        self.entry_widget.config(state='disabled')
+        
+    def hide_loading(self):
+        self.loading = False
+        self.loading_label.pack_forget()
+        self.entry_widget.config(state='normal')
+    
     def process_input(self, event):
         user_input = self.entry_widget.get().strip()
         if user_input:
+            self.entry_widget.delete(0, tk.END)
             self.add_message("You", user_input, right=True)
             self.log_message(user_input)
             
-            response = self.message_callback(user_input)
-            self.add_message("Alfred", response)
-            self.log_message(f"Alfred: {response}")
+            self.show_loading()
             
-        self.entry_widget.delete(0, tk.END)
+            def callback_wrapper():
+                response = self.message_callback(user_input)
+                self.root.after(0, lambda: self.handle_response(response))
+            
+            thread = threading.Thread(target=callback_wrapper)
+            thread.start()
+    
+    def handle_response(self, response):
+        self.hide_loading()
+        self.add_message("Alfred", response)
+        self.log_message(f"Alfred: {response}")
     
     def _on_mousewheel(self, event):
         self.canvas.yview_scroll(-1 * (event.delta // 120), "units")

@@ -5,10 +5,10 @@ import os
 import json
 
 class ChatUI:
-    def __init__(self, root, message_callback, ai_manager):  # Add ai_manager parameter
+    def __init__(self, root, message_callback, ai_manager):
         self.root = root
         self.message_callback = message_callback
-        self.ai_manager = ai_manager  # Store reference to ai_manager
+        self.ai_manager = ai_manager
         self.root.title("AI Agent Alfred")
         self.root.geometry("400x500")
         self.root.attributes('-alpha', 0.9)
@@ -24,20 +24,24 @@ class ChatUI:
         
         # Bind window closing events
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
-        self.root.bind("<Escape>", self.on_closing)
+        self.root.bind("<Escape>", lambda e: self.on_closing())
     
     def on_closing(self, event=None):
         """Handle window closing and save chat history"""
-        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f'.history/AIAgent_{timestamp}.json'
+        # Get current date
+        date = datetime.datetime.now().strftime("%Y%m%d")
         
-        # Get chat history from AIAgent
-        chat_history = self.ai_manager.agent.get_chat_history()
+        # Create .history directory if it doesn't exist
+        os.makedirs('.history', exist_ok=True)
         
-        history_data = {
-            'timestamp': datetime.datetime.now().isoformat(),
-            'messages': chat_history
-        }
+        # Find the next available index for today's files
+        index = 1
+        while os.path.exists(f'.history/AIAgent_{date}_{index:03d}.json'):
+            index += 1
+        
+        filename = f'.history/AIAgent_{date}_{index:03d}.json'
+        
+        history_data = self.ai_manager.agent.get_chat_history()
         
         try:
             with open(filename, 'w', encoding='utf-8') as f:
@@ -45,7 +49,7 @@ class ChatUI:
         except Exception as e:
             print(f"Error saving chat history: {e}")
         
-        self.root.quit()
+        self.root.destroy()
         
     def setup_ui(self):
         self.chat_frame = tk.Frame(self.root, bg="#f0f0f0")

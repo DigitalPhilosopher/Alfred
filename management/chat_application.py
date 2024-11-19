@@ -10,8 +10,4 @@ class ChatApplication:
         self.ai_manager.set_stream_callback(self.assistant.update_current_message)
     
     def run(self):
-        try:
-            self.root.mainloop()
-        finally:
-            if hasattr(self.assistant, 'on_closing'):
-                self.assistant.on_closing()
+        self.root.mainloop()

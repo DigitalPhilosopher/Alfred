@@ -8,6 +8,10 @@ class AIAgent:
     def __init__(self):
         self.strategy: Optional[AIStrategy] = None
         self.on_stream: Optional[Callable[[str], None]] = None
+        self.chat_history = [
+            {"role": "system", "content": "You are a helpful assistant."},
+            {"role": "assistant", "content": "Hello! Type your message and press Enter. Press Escape to exit."}
+        ]
         
     def initialize_strategy(self) -> None:
         load_dotenv()
@@ -34,8 +38,20 @@ class AIAgent:
         if self.strategy and hasattr(self.strategy, 'on_stream'):
             self.strategy.on_stream = callback
 
-    def chat(self, prompts: List[Dict[str, str]], model: Optional[str] = None) -> str:
+    def add_message(self, role: str, content: str) -> None:
+        """Add a new message to the chat history."""
+        self.chat_history.append({"role": role, "content": content})
+
+    def get_chat_history(self) -> List[Dict[str, str]]:
+        """Get the current chat history."""
+        return self.chat_history
+
+    def chat(self, message: str, model: Optional[str] = None) -> str:
+        """Process a single message and return the response."""
         if not self.strategy:
             self.initialize_strategy()
         
-        return self.strategy.chat(prompts, model)
+        self.add_message("user", message)
+        response = self.strategy.chat(self.chat_history, model)
+        self.add_message("assistant", response)
+        return response

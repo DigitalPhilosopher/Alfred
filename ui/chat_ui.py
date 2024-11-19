@@ -1,20 +1,51 @@
 import tkinter as tk
 import datetime
 import threading
+import os
+import json
 
 class ChatUI:
-    def __init__(self, root, message_callback):
+    def __init__(self, root, message_callback, ai_manager):  # Add ai_manager parameter
         self.root = root
         self.message_callback = message_callback
+        self.ai_manager = ai_manager  # Store reference to ai_manager
         self.root.title("AI Agent Alfred")
         self.root.geometry("400x500")
         self.root.attributes('-alpha', 0.9)
         self.root.resizable(False, False)
         
+        # Create .history directory if it doesn't exist
+        os.makedirs('.history', exist_ok=True)
+        
         self.setup_ui()
         self.log_file = "assistant.log"
         self.loading = False
         self.add_message("Alfred", "Hello! Type your message and press Enter. Press Escape to exit.")
+        
+        # Bind window closing events
+        self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
+        self.root.bind("<Escape>", self.on_closing)
+    
+    def on_closing(self, event=None):
+        """Handle window closing and save chat history"""
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f'.history/AIAgent_{timestamp}.json'
+        
+        # Get chat history from AIAgent
+        chat_history = self.ai_manager.agent.get_chat_history()
+        
+        history_data = {
+            'timestamp': datetime.datetime.now().isoformat(),
+            'messages': chat_history
+        }
+        
+        try:
+            with open(filename, 'w', encoding='utf-8') as f:
+                json.dump(history_data, f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            print(f"Error saving chat history: {e}")
+        
+        self.root.quit()
         
     def setup_ui(self):
         self.chat_frame = tk.Frame(self.root, bg="#f0f0f0")

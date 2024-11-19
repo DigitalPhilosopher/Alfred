@@ -1,4 +1,4 @@
-from typing import Optional, List, Dict, Callable
+from typing import Optional, List, Dict, Callable, Any
 from abc import ABC, abstractmethod
 from dotenv import load_dotenv
 import os
@@ -10,6 +10,7 @@ class AIAgent(ABC):
         self.strategy: Optional[AIStrategy] = None
         self.on_stream: Optional[Callable[[str], None]] = None
         self.chat_history: List[Dict[str, str]] = []
+        self.tools: Dict[str, Dict[str, Any]] = {}
         self.init_chat_history()
     
     @abstractmethod
@@ -31,6 +32,22 @@ class AIAgent(ABC):
         """
         pass
 
+    def register_tool(self, name: str, func: Callable, description: str, input_schema: Dict[str, Any]) -> None:
+        """
+        Register a new tool that can be used by the AI agent.
+        
+        Args:
+            name: The name of the tool
+            func: The function to be called when the tool is used
+            description: A description of what the tool does
+            input_schema: JSON schema describing the expected input format
+        """
+        self.tools[name] = {
+            "function": func,
+            "description": description,
+            "input_schema": input_schema
+        }
+
     def initialize_strategy(self) -> None:
         load_dotenv()
         
@@ -50,6 +67,10 @@ class AIAgent(ABC):
         
         if hasattr(self.strategy, 'on_stream'):
             self.strategy.on_stream = self.on_stream
+        
+        # Pass tools to strategy
+        if self.tools and hasattr(self.strategy, 'set_tools'):
+            self.strategy.set_tools(self.tools)
     
     def set_stream_callback(self, callback: Callable[[str], None]):
         self.on_stream = callback

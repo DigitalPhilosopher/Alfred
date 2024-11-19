@@ -1,6 +1,7 @@
 from anthropic import Anthropic
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 import asyncio
+import json
 from .base import AIStrategy
 from ..logger_config import logger
 
@@ -13,7 +14,7 @@ class AnthropicStrategy(AIStrategy):
     
     @property
     def default_model(self) -> str:
-        return "claude-3-haiku-20240307"
+        return "claude-3-5-sonnet-20241022"
     
     def initialize_client(self) -> None:
         if not self.client:
@@ -27,18 +28,43 @@ class AnthropicStrategy(AIStrategy):
     async def stream_message(self, messages: List[Dict], system: str, model: str):
         try:
             chunks = []
-            with self.client.messages.stream(
-                model=model,
-                max_tokens=1000,
-                temperature=0,
-                system=system,
-                messages=messages
-            ) as stream:
-                # Regular for loop since text_stream is a regular generator
-                for text in stream.text_stream:
-                    chunks.append(text)
-                    self.stream_chunk(text)  # Use the base class method
-                    # Add a small delay to allow for cancellation checks
+            kwargs = {
+                "model": model,
+                "max_tokens": 1000,
+                "temperature": 0,
+                "system": system,
+                "messages": messages
+            }
+            
+            # Add tools if available
+            if self.tools:
+                kwargs["tools"] = self.get_tool_definitions()
+                logger.info(f"Using tools: {self.tools}")
+            
+            with self.client.messages.stream(**kwargs) as stream:
+                for chunk in stream:
+                    if chunk.type == "message_start":
+                        continue
+                    elif chunk.type == "content_block_start":
+                        continue
+                    elif chunk.type == "tool_calls":
+                        # Execute tool calls
+                        for tool_call in chunk.tool_calls:
+                            tool_name = tool_call.name
+                            if tool_name in self.tools:
+                                try:
+                                    args = json.loads(tool_call.arguments)
+                                    result = self.tools[tool_name]["function"](**args)
+                                    chunks.append(f"\nTool {tool_name} result: {result}\n")
+                                    self.stream_chunk(f"\nTool {tool_name} result: {result}\n")
+                                except Exception as e:
+                                    error_msg = f"\nError executing tool {tool_name}: {str(e)}\n"
+                                    chunks.append(error_msg)
+                                    self.stream_chunk(error_msg)
+                    elif chunk.type == "content_block_delta":
+                        chunks.append(chunk.delta.text)
+                        self.stream_chunk(chunk.delta.text)
+                    
                     await asyncio.sleep(0)
                     
             return "".join(chunks)

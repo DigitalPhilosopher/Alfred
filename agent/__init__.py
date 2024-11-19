@@ -1,4 +1,4 @@
-from .ai_agent import AIAgent
+from .agents import AIAgent
 from .strategies import OpenAIStrategy
 from .strategies import AnthropicStrategy
 from .strategies import DummyStrategy

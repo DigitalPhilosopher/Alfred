@@ -1,7 +1,6 @@
 from anthropic import Anthropic
 from typing import List, Dict, Optional
 import asyncio
-from concurrent.futures import CancelledError
 from .base import AIStrategy
 from ..logger_config import logger
 

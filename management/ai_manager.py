@@ -1,8 +1,8 @@
-from agent import AIAgent
+from agent import GeneralAgent
 
 class AIManager:
     def __init__(self):
-        self.agent = AIAgent()
+        self.agent = GeneralAgent()
         
     def set_stream_callback(self, callback):
         self.agent.set_stream_callback(callback)

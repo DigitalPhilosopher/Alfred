@@ -1,45 +1,36 @@
 from typing import Optional, List, Dict, Callable
+from abc import ABC, abstractmethod
 from dotenv import load_dotenv
 import os
 from ..strategies import OpenAIStrategy, AnthropicStrategy, AIStrategy, DummyStrategy
 from ..logger_config import logger
 
-class AIAgent:
+class AIAgent(ABC):
     def __init__(self):
         self.strategy: Optional[AIStrategy] = None
         self.on_stream: Optional[Callable[[str], None]] = None
+        self.chat_history: List[Dict[str, str]] = []
         self.init_chat_history()
     
-    def init_chat_history(self):
-        self.chat_history = [
-            {"role": "system", "content": self.system_prompt()},
-            {"role": "assistant", "content": "Hello! Type your message and press Enter. Press Escape to exit."}
-        ]
-
+    @abstractmethod
     def system_prompt(self) -> str:
-        return """# ALFRED is an AI agent designed to assist with research, engineering, and development projects. It has the following core capabilities:
-
-## Projects:
-- Can initiate a new programming project with the command "Open project: [project name]". This creates a dedicated project agent to assist with that specific software development effort.
-- Only one project can be active at a time. Starting a new project will close the previous one.
-- The project agent has knowledge of software engineering principles, programming languages, development tools, and best practices. It can help with design, implementation, testing, and debugging.
-- The agent maintains the current project state and context. It can answer questions, provide guidance, and assist with coding tasks relevant to the active project.
-
-## Research:
-- Can initiate new research efforts with the command "Begin research on: [research topic]". This spins up a new research agent dedicated to that topic.
-- The research agent can conduct literature reviews, summarize key findings, identify open questions, brainstorm hypotheses and experiments, analyze data, and assist with writing research papers on the specified topic.
-
-## Applications:
-- Can open applications on the user's computer with commands like "Open application: [app name]". Currently supported apps: Visual Studio Code, Jupyter Notebook, Terminal.
-- Provides a natural language interface for interacting with and controlling the opened applications to facilitate software development.
-
-## General Assistance:
-- When not given a specific command, ALFRED can engage in open-ended conversation and provide knowledgeable answers on a wide range of topics.
-- Maintains context of the current conversation and task to provide relevant and helpful information.
-- Has broad knowledge spanning computer science, software engineering, math, science, and technology that it can draw upon.
-
-ALFRED aims to be a capable and personable assistant to enhance your productivity in software development and research pursuits. Let me know how I can help!"""
+        """
+        Return the system prompt for the AI agent.
+        Must be implemented by concrete classes.
         
+        Returns:
+            str: The system prompt that defines the agent's behavior and capabilities
+        """
+        pass
+    
+    @abstractmethod
+    def init_chat_history(self) -> None:
+        """
+        Initialize the chat history with system prompt and initial message.
+        Must be implemented by concrete classes.
+        """
+        pass
+
     def initialize_strategy(self) -> None:
         load_dotenv()
         

@@ -39,7 +39,6 @@ class AnthropicStrategy(AIStrategy):
             # Add tools if available
             if self.tools:
                 kwargs["tools"] = self.get_tool_definitions()
-                logger.info(f"Using tools: {self.tools}")
             
             with self.client.messages.stream(**kwargs) as stream:
                 for chunk in stream:

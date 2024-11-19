@@ -12,6 +12,10 @@ class AIAgent(ABC):
         self.chat_history: List[Dict[str, str]] = []
         self.tools: Dict[str, Dict[str, Any]] = {}
         self.init_chat_history()
+        self._register_tools()
+    
+    def _register_tools() -> str:
+        pass
     
     @abstractmethod
     def system_prompt(self) -> str:

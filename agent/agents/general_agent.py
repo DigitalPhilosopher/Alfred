@@ -10,7 +10,6 @@ class GeneralAgent(AIAgent):
 
     def _register_tools(self):
         """Register all available tools for the general agent."""
-        exit(1)
         self.register_tool(
             name="list_all_projects",
             func=list_all_projects,

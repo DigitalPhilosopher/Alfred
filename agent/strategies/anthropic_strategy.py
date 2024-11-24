@@ -68,7 +68,7 @@ class AnthropicStrategy(AIStrategy):
                                     logger.info(f"Tool {tool_name} executed successfully")
                                     logger.info(f"Tool result: {result}")
                                     
-                                    response_text = f"\nTool {tool_name} result: {result}\n"
+                                    response_text = f"\n{result}"
                                     chunks.append(response_text)
                                     self.stream_chunk(response_text)
                                     
@@ -79,12 +79,11 @@ class AnthropicStrategy(AIStrategy):
                                     self.stream_chunk(error_msg)
                     
                     elif chunk.type == "content_block_delta":
+                        text = ""
                         if hasattr(chunk.delta, 'value'):
                             text = chunk.delta.value
                         elif hasattr(chunk.delta, 'text'):
                             text = chunk.delta.text
-                        else:
-                            text = str(chunk.delta)
                         
                         chunks.append(text)
                         self.stream_chunk(text)

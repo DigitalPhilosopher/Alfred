@@ -27,5 +27,5 @@ def list_all_projects():
     if not project_path.exists():
         raise FileNotFoundError(f"Directory {project_path} does not exist")
     
-    # List all directories
-    return [item.name for item in project_path.iterdir() if item.is_dir()]
+    # Convert list of directories to formatted string
+    return "\n".join([f"- {item.name}" for item in project_path.iterdir() if item.is_dir()])

@@ -1,5 +1,5 @@
 from .ai_agent import AIAgent
-from ..functions import list_all_projects
+from ..functions import list_all_projects, open_project
 
 class GeneralAgent(AIAgent):
     def init_chat_history(self):
@@ -27,6 +27,32 @@ Returns:
                 "required": []
             }
         )
+        self.register_tool(
+            name="open_project",
+            func=open_project,
+            description="""Open a project in Visual Studio Code.
+
+This function loads the environment variable 'PROJECTS' to determine
+the directory where projects are stored. It then opens the specified
+project directory in VS Code.
+
+Args:
+    project_name: Name of the project directory to open
+
+Returns:
+    str: Success message if project opened successfully
+
+Raises:
+    ValueError: If PROJECTS env var not set
+    FileNotFoundError: If project directory doesn't exist
+            """,
+            input_schema={
+                "type": "object",
+                "properties": {"project_name": {"type": "string"}},
+                "required": ["project_name"]
+            }
+        )
+
 
     def system_prompt(self) -> str:
         return """# ALFRED is an AI agent designed to assist with research, engineering, and development projects. It has the following core capabilities:

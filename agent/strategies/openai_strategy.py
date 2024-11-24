@@ -12,6 +12,7 @@ class OpenAIStrategy(AIStrategy):
         self.api_key = api_key
         self.client = None
         self.current_task = None
+        self.current_tool_calls = {}  # Store incomplete tool calls
     
     @property
     def default_model(self) -> str:
@@ -31,14 +32,12 @@ class OpenAIStrategy(AIStrategy):
             self.initialize_client()
             logger.info(f"Starting OpenAI streaming chat with model: {model}")
             
-            # Prepare kwargs with optional tools
             kwargs = {
                 "model": model,
                 "messages": messages,
                 "stream": True
             }
             
-            # Add tools if available
             if self.tools:
                 kwargs["tools"] = [
                     {
@@ -52,48 +51,77 @@ class OpenAIStrategy(AIStrategy):
                     for name, tool in self.tools.items()
                 ]
             
-            # Create the stream with tools
             stream = self.client.chat.completions.create(**kwargs)
             
             full_response = []
-            # Process the synchronous stream in chunks
             for chunk in stream:
                 if asyncio.current_task().cancelled():
                     raise asyncio.CancelledError()
                 
                 # Handle tool calls
                 if hasattr(chunk.choices[0], 'delta') and hasattr(chunk.choices[0].delta, 'tool_calls'):
-                    tool_calls = chunk.choices[0].delta.tool_calls
-                    logger.info(f"Tool calls: {tool_calls}")
+                    delta = chunk.choices[0].delta
+                    tool_calls = delta.tool_calls
+                    
                     if tool_calls:
-                        logger.info(f"Processing tool calls: {tool_calls}")
                         for tool_call in tool_calls:
-                            logger.info(f"Processing tool call: {tool_call}")
-                            if tool_call.function.name in self.tools:
-                                logger.info(f"Tool {tool_call.function.name} found in tools")
+                            tool_call_id = tool_call.id if tool_call.id else list(self.current_tool_calls.keys())[-1]
+                            
+                            # Initialize new tool call
+                            if tool_call_id not in self.current_tool_calls:
+                                self.current_tool_calls[tool_call_id] = {
+                                    'function': {'name': '', 'arguments': ''},
+                                    'type': 'function',
+                                    'complete': False
+                                }
+                            
+                            current_call = self.current_tool_calls[tool_call_id]
+                            
+                            # Update function name if present
+                            if hasattr(tool_call.function, 'name') and tool_call.function.name:
+                                current_call['function']['name'] = tool_call.function.name
+                            
+                            # Append arguments if present
+                            if hasattr(tool_call.function, 'arguments') and tool_call.function.arguments:
+                                current_call['function']['arguments'] += tool_call.function.arguments
+                            
+                            # Check if we have a complete tool call
+                            try:
+                                # Attempt to parse arguments as JSON to check completeness
+                                if current_call['function']['name'] and current_call['function']['arguments']:
+                                    json.loads(current_call['function']['arguments'])
+                                    current_call['complete'] = True
+                            except json.JSONDecodeError:
+                                # Arguments are not complete JSON yet
+                                continue
+                            
+                            # Execute complete tool calls
+                            if current_call['complete'] and not current_call.get('executed', False):
                                 try:
-                                    # Parse and execute tool
-                                    tool_name = tool_call.function.name
-                                    logger.info(f"Tool name: {tool_name}")
-                                    args = json.loads(tool_call.function.arguments or '{}')
-                                    logger.info(f"Tool arguments: {args}")
-                                    tool_func = self.tools[tool_name]["function"]
-                                    logger.info(f"Tool function: {tool_func}")
+                                    tool_name = current_call['function']['name']
+                                    logger.info(f"Executing complete tool call: {tool_name}")
+                                    args = json.loads(current_call['function']['arguments'])
                                     
-                                    # Handle both async and sync functions
-                                    if asyncio.iscoroutinefunction(tool_func):
-                                        result = await tool_func(**args)
-                                    else:
-                                        result = tool_func(**args)
-                                    
-                                    result_text = f"\n{result}\n"
-                                    callback(result_text)
-                                    full_response.append(result_text)
+                                    if tool_name in self.tools:
+                                        tool_func = self.tools[tool_name]["function"]
+                                        
+                                        if asyncio.iscoroutinefunction(tool_func):
+                                            result = await tool_func(**args)
+                                        else:
+                                            result = tool_func(**args)
+                                        
+                                        result_text = f"\n{result}\n"
+                                        callback(result_text)
+                                        full_response.append(result_text)
+                                        
+                                        current_call['executed'] = True
                                     
                                 except Exception as e:
                                     error_msg = f"\nError executing tool {tool_name}: {str(e)}\n"
+                                    logger.error(error_msg)
                                     callback(error_msg)
                                     full_response.append(error_msg)
+                                    current_call['executed'] = True
                 
                     # Handle regular content
                     elif hasattr(chunk.choices[0].delta, 'content') and chunk.choices[0].delta.content:
@@ -101,8 +129,11 @@ class OpenAIStrategy(AIStrategy):
                         callback(content)
                         full_response.append(content)
                 
-                # Add a small sleep to allow for cancellation checks
                 await asyncio.sleep(0)
+            
+            # Clean up completed tool calls at the end
+            self.current_tool_calls = {k: v for k, v in self.current_tool_calls.items() 
+                                     if not v.get('executed', False)}
             
             return "".join(full_response)
             
@@ -131,7 +162,7 @@ class OpenAIStrategy(AIStrategy):
             
             def collect_chunks(chunk):
                 chunks.append(chunk)
-                self.stream_chunk(chunk)  # Use the base class method
+                self.stream_chunk(chunk)
             
             try:
                 await self.stream_message(messages, model, collect_chunks)

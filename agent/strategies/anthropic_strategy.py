@@ -11,6 +11,35 @@ class AnthropicStrategy(AIStrategy):
         self.api_key = api_key
         self.client = None
         self.current_stream = None
+        self.current_tool_calls = {} 
+    
+    @property
+    def default_model(self) -> str:
+        return "claude-3-5-sonnet-20241022"
+    
+    def initialize_client(self) -> None:
+        if not self.client:
+            logger.info("Initializing Anthropic client")
+            self.client = Anthropic(api_key=self.api_key)
+    
+    def cancel_current_stream(self):
+        if self.current_stream and not self.current_stream.done():
+            self.current_stream.cancel()
+    
+    from anthropic import Anthropic
+from typing import List, Dict, Optional, Any
+import asyncio
+import json
+from .base import AIStrategy
+from ..logger_config import logger
+
+class AnthropicStrategy(AIStrategy):
+    def __init__(self, api_key: str):
+        super().__init__()
+        self.api_key = api_key
+        self.client = None
+        self.current_stream = None
+        self.current_tool_calls = {}  # Store incomplete tool calls
     
     @property
     def default_model(self) -> str:
@@ -28,6 +57,9 @@ class AnthropicStrategy(AIStrategy):
     async def stream_message(self, messages: List[Dict], system: str, model: str):
         try:
             chunks = []
+            current_tool_call = None
+            current_json = ""
+            
             kwargs = {
                 "model": model,
                 "max_tokens": 1000,
@@ -46,24 +78,57 @@ class AnthropicStrategy(AIStrategy):
                     logger.info(f"Received chunk: {chunk}")
                     
                     if chunk.type == "content_block_start":
-                        if hasattr(chunk, 'content_block') and getattr(chunk.content_block, 'type', None) == 'tool_use':
-                            tool_name = chunk.content_block.name
-                            logger.info(f"Processing tool use: {tool_name}")
+                        if hasattr(chunk, 'content_block'):
+                            if getattr(chunk.content_block, 'type', None) == 'tool_use':
+                                tool_name = chunk.content_block.name
+                                current_tool_call = {
+                                    'name': tool_name,
+                                    'arguments': {},  # Initialize empty dict
+                                    'complete': True  # Mark as complete immediately for no-argument tools
+                                }
+                                logger.info(f"Starting tool call: {tool_name}")
+                            elif getattr(chunk.content_block, 'type', None) == 'text':
+                                if hasattr(chunk.content_block, 'text') and chunk.content_block.text:
+                                    text = chunk.content_block.text
+                                    chunks.append(text)
+                                    self.stream_chunk(text)
+                    
+                    elif chunk.type == "content_block_delta":
+                        if current_tool_call and hasattr(chunk.delta, 'type') and chunk.delta.type == 'input_json_delta':
+                            if hasattr(chunk.delta, 'partial_json'):
+                                current_json += chunk.delta.partial_json
+                                logger.info(f"Accumulated JSON: {current_json}")
+                                
+                                # Only try to parse JSON if it's not empty
+                                if current_json.strip():
+                                    try:
+                                        args = json.loads(current_json)
+                                        current_tool_call['arguments'] = args
+                                        current_tool_call['complete'] = True
+                                        logger.info(f"Completed tool arguments: {json.dumps(args, indent=2)}")
+                                    except json.JSONDecodeError:
+                                        # If JSON is incomplete, continue accumulating
+                                        continue
+                        elif hasattr(chunk.delta, 'text'):
+                            text = chunk.delta.text
+                            chunks.append(text)
+                            self.stream_chunk(text)
+                    
+                    elif chunk.type == "content_block_stop":
+                        if current_tool_call and current_tool_call['complete']:
+                            tool_name = current_tool_call['name']
+                            args = current_tool_call['arguments']
                             
                             if tool_name in self.tools:
                                 try:
-                                    # Get tool arguments from input
-                                    args = chunk.content_block.input or {}
-                                    logger.info(f"Tool arguments: {json.dumps(args, indent=2)}")
-                                    
                                     logger.info(f"Executing tool: {tool_name}")
                                     tool_func = self.tools[tool_name]["function"]
                                     
-                                    # Handle both async and sync functions
+                                    # Execute tool with or without arguments
                                     if asyncio.iscoroutinefunction(tool_func):
-                                        result = await tool_func(**args)
+                                        result = await tool_func(**args) if args else await tool_func()
                                     else:
-                                        result = tool_func(**args)
+                                        result = tool_func(**args) if args else tool_func()
                                     
                                     logger.info(f"Tool {tool_name} executed successfully")
                                     logger.info(f"Tool result: {result}")
@@ -77,17 +142,10 @@ class AnthropicStrategy(AIStrategy):
                                     error_msg = f"\nError executing tool {tool_name}: {str(e)}\n"
                                     chunks.append(error_msg)
                                     self.stream_chunk(error_msg)
-                    
-                    elif chunk.type == "content_block_delta":
-                        text = ""
-                        if hasattr(chunk.delta, 'value'):
-                            text = chunk.delta.value
-                        elif hasattr(chunk.delta, 'text'):
-                            text = chunk.delta.text
-                        
-                        chunks.append(text)
-                        self.stream_chunk(text)
-                        
+                            
+                            current_tool_call = None
+                            current_json = ""
+                            
                     await asyncio.sleep(0)
             
             return "".join(chunks)

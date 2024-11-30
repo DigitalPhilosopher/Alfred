@@ -1,5 +1,6 @@
 from .ai_agent import AIAgent
 from ..functions import list_all_projects, open_project
+from .project_agent import ProjectAgent
 
 class GeneralAgent(AIAgent):
     def init_chat_history(self):
@@ -53,7 +54,11 @@ Raises:
             }
         )
 
-
+    def open_project(self, project_name: str):
+        open_project(project_name)
+        project_agent = ProjectAgent(self.env)
+        self.on_change(project_agent)
+        
     def system_prompt(self) -> str:
         return """# ALFRED is an AI agent designed to assist with research, engineering, and development projects. It has the following core capabilities:
 

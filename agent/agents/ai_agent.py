@@ -13,9 +13,17 @@ class AIAgent(ABC):
         self.tools: Dict[str, Dict[str, Any]] = {}
         self.init_chat_history()
         self._register_tools()
+        self.env = {}
+        self.on_change: Optional[Callable[[object], None]] = None
+
+    def set_change_callback(self, callback: Callable[[object], None]):
+        self.on_change = callback
     
     def _register_tools() -> str:
         pass
+
+    def environment_setup(self, env) -> str:
+        self.env = env
     
     @abstractmethod
     def system_prompt(self) -> str:

@@ -3,6 +3,9 @@ from agent import GeneralAgent
 class AIManager:
     def __init__(self):
         self.agent = GeneralAgent()
+
+    def change_agent(self, agent):
+        self.agent = agent
         
     def set_stream_callback(self, callback):
         self.agent.set_stream_callback(callback)

@@ -4,6 +4,7 @@ from .base import AIStrategy
 from ..logger_config import logger
 from concurrent.futures import CancelledError
 import asyncio
+import json
 
 class OpenAIStrategy(AIStrategy):
     def __init__(self, api_key: str):
@@ -30,23 +31,75 @@ class OpenAIStrategy(AIStrategy):
             self.initialize_client()
             logger.info(f"Starting OpenAI streaming chat with model: {model}")
             
-            # Create the stream without await
-            stream = self.client.chat.completions.create(
-                model=model,
-                messages=messages,
-                stream=True
-            )
+            # Prepare kwargs with optional tools
+            kwargs = {
+                "model": model,
+                "messages": messages,
+                "stream": True
+            }
+            
+            # Add tools if available
+            if self.tools:
+                kwargs["tools"] = [
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": name,
+                            "description": tool["description"],
+                            "parameters": tool["input_schema"]
+                        }
+                    }
+                    for name, tool in self.tools.items()
+                ]
+            
+            # Create the stream with tools
+            stream = self.client.chat.completions.create(**kwargs)
             
             full_response = []
             # Process the synchronous stream in chunks
             for chunk in stream:
                 if asyncio.current_task().cancelled():
                     raise asyncio.CancelledError()
-                    
-                if chunk.choices[0].delta.content:
-                    content = chunk.choices[0].delta.content
-                    callback(content)
-                    full_response.append(content)
+                
+                # Handle tool calls
+                if hasattr(chunk.choices[0], 'delta') and hasattr(chunk.choices[0].delta, 'tool_calls'):
+                    tool_calls = chunk.choices[0].delta.tool_calls
+                    logger.info(f"Tool calls: {tool_calls}")
+                    if tool_calls:
+                        logger.info(f"Processing tool calls: {tool_calls}")
+                        for tool_call in tool_calls:
+                            logger.info(f"Processing tool call: {tool_call}")
+                            if tool_call.function.name in self.tools:
+                                logger.info(f"Tool {tool_call.function.name} found in tools")
+                                try:
+                                    # Parse and execute tool
+                                    tool_name = tool_call.function.name
+                                    logger.info(f"Tool name: {tool_name}")
+                                    args = json.loads(tool_call.function.arguments or '{}')
+                                    logger.info(f"Tool arguments: {args}")
+                                    tool_func = self.tools[tool_name]["function"]
+                                    logger.info(f"Tool function: {tool_func}")
+                                    
+                                    # Handle both async and sync functions
+                                    if asyncio.iscoroutinefunction(tool_func):
+                                        result = await tool_func(**args)
+                                    else:
+                                        result = tool_func(**args)
+                                    
+                                    result_text = f"\n{result}\n"
+                                    callback(result_text)
+                                    full_response.append(result_text)
+                                    
+                                except Exception as e:
+                                    error_msg = f"\nError executing tool {tool_name}: {str(e)}\n"
+                                    callback(error_msg)
+                                    full_response.append(error_msg)
+                
+                    # Handle regular content
+                    elif hasattr(chunk.choices[0].delta, 'content') and chunk.choices[0].delta.content:
+                        content = chunk.choices[0].delta.content
+                        callback(content)
+                        full_response.append(content)
                 
                 # Add a small sleep to allow for cancellation checks
                 await asyncio.sleep(0)
